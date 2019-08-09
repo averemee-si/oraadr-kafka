@@ -1,0 +1,14 @@
+a2.target.broker = kinesis
+
+a2.file.query.interval = 500
+
+a2.watched.adr.file.0 = /u01/install/APPS/12.1.0/admin/EBSDB_apps/diag/rdbms/ebsdb/EBSDB/alert/log.xml
+a2.watched.adr.message.prefix.0 = rdbms1
+a2.watched.adr.file.1 = /u01/install/APPS/12.1.0/admin/EBSDB_apps/diag/tnslsnr/apps/ebsdb/alert/log.xml
+a2.watched.adr.message.prefix.1 = tnslsnr1
+
+a2.kinesis.region = eu-west-1
+a2.kinesis.stream = ora-aud-test
+a2.kinesis.access.key = AAAAAAAAAABBBBBBBBBB
+a2.kinesis.access.secret = AAAAAAAAAABBBBBBBBBBCCCCCCCCCCDDDDDDDDDD
+
