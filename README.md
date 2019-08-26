@@ -80,6 +80,8 @@ a2.kafka.client.id = a2.audit.ai.ora112
 
 
 #### Optional parameters ####
+`a2.data.format` - when set to `RAW` (default value) sends message as raw string in Oracle ADR XML format. When set to `JSON` sends JSON formatted data with field names same as in **[V$DIAG_ALERT_EXT](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/refrn/V-DIAG_ALERT_EXT.html)**/**X$DBGALERTEXT**
+
 `a2.kafka.security.protocol` - must be set to `SSL` or `SASL_SSL` if you like to transmit files using SSL and enable auth. Only PLAIN authentication supported and tested at moment.
 
 `a2.kafka.security.truststore.location` - set to valid certificate store file if `a2.security.protocol` set to `SSL` or `SASL_SSL`
@@ -155,13 +157,9 @@ a2.kinesis.access.secret = AAAAAAAAAABBBBBBBBBBCCCCCCCCCCDDDDDDDDDD
 
 #### Optional parameters ####
 
+`a2.data.format` - when set to `RAW` (default value) sends message as raw string in Oracle ADR XML format. When set to `JSON` sends JSON formatted data with field names same as in **[V$DIAG_ALERT_EXT](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/refrn/V-DIAG_ALERT_EXT.html)**/**X$DBGALERTEXT**. Usage of JSON formatted data simplifies further delivery using [Amazon Kinesis Data Firehose](https://aws.amazon.com/kinesis/data-firehose/) and processing in DW or data lake.
+
 `a2.kinesis.max.connections` - can be used to control the degree of parallelism when making HTTP requests. Using a high number will cause a bunch of broken pipe errors to show up in the logs. This is due to idle connections being closed by the server. Setting this value too large may also cause request timeouts if you do not have enough bandwidth. **1** is default value
-
-`a2.kinesis.request.timeout` - Request timeout milliseconds. **30000** is default value
-
-`a2.kinesis.request.record.max.buffered.time` - controls how long records are allowed to wait  in the Kinesis Producer's buffers before being sent. Larger values increase aggregation and reduces the number of Kinesis records put, which can be helpful if you're getting throttled because of the records per second limit on a shard.. **5000** is default value
-
-`a2.kinesis.file.size.threshold` - Maximum size of audit file transferred without compression. **512** is default value
 
 
 ## Running 
@@ -180,6 +178,15 @@ If running with [Amazon Kinesis](https://aws.amazon.com/kinesis/) check for tran
 
 ## TODO
 * Kerberos support
+
+## Version history
+###0.9.0###
+Initial release
+###0.9.1###
+ - Amazon Kinesis Client Library instead of Amazon Kinesis Producer Library and removing KPL related parameters
+ - adr.xsd
+ - ability to send JSON formatted data using a2.data.format option
+
 
 ## Authors
 

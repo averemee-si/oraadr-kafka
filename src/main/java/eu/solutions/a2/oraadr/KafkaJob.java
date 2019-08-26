@@ -15,9 +15,13 @@ package eu.solutions.a2.oraadr;
 
 import java.util.concurrent.Callable;
 
+import javax.xml.bind.JAXBException;
+
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.log4j.Logger;
 
+import eu.solutions.a2.oraadr.schema.AdrFileUnmarshallerSingleton;
+import eu.solutions.a2.oraadr.schema.Msg;
 import eu.solutions.a2.utils.ExceptionUtils;
 
 public class KafkaJob implements Callable<Void> {
@@ -26,12 +30,14 @@ public class KafkaJob implements Callable<Void> {
 
 	final String prefix;
 	final String message;
+	final long msgNum;
 	final CommonJobSingleton commonData;
 	final KafkaSingleton kafkaData;
 
-	KafkaJob(final String prefix, final String message) {
+	KafkaJob(final String prefix, final long msgNum, final String message) {
 		this.prefix = prefix;
 		this.message = message;
+		this.msgNum = msgNum;
 		this.commonData = CommonJobSingleton.getInstance();
 		this.kafkaData = KafkaSingleton.getInstance();
 	}
@@ -39,8 +45,33 @@ public class KafkaJob implements Callable<Void> {
 	@Override
 	public Void call() {
 		final long startTime = System.currentTimeMillis();
-		final String kafkaKey = prefix + ":" + startTime;
-		ProducerRecord<String, String> record = new ProducerRecord<>(kafkaData.topic(), kafkaKey, message);
+		// Add message number to prefix
+		final StringBuilder kafkaKey = new StringBuilder(32);
+		kafkaKey.append(prefix);
+		kafkaKey.append(":");
+		kafkaKey.append(msgNum);
+		kafkaKey.append(":");
+		kafkaKey.append(startTime);
+
+		ProducerRecord<String, Object> record = null;
+		if (commonData.getDataFormat() == OraadrKafka.DATA_FORMAT_RAW_STRING) {
+			record = new ProducerRecord<>(kafkaData.topic(), kafkaKey.toString(), message);
+		} else if (commonData.getDataFormat() == OraadrKafka.DATA_FORMAT_JSON) {
+			AdrFileUnmarshallerSingleton afu = AdrFileUnmarshallerSingleton.getInstance();
+			try {
+				Msg msg = afu.getMessageAsPojo(message);
+				msg.setAdrFileKey(prefix);
+				record = new ProducerRecord<>(kafkaData.topic(), kafkaKey.toString(), msg);
+			} catch (JAXBException e) {
+				LOGGER.error("Exception while transforming message.\n" );
+				LOGGER.error("Message is:\n" + message);
+				LOGGER.error("ErrorStack:\n");
+				LOGGER.error(ExceptionUtils.getExceptionStackTrace(e));
+			}
+		}
+		if (record == null) {
+			return null;
+		}
 		kafkaData.producer().send(
 				record,
 				(metadata, exception) -> {
@@ -50,7 +81,7 @@ public class KafkaJob implements Callable<Void> {
 						LOGGER.error(ExceptionUtils.getExceptionStackTrace(exception));
 					} else {
 						commonData.addFileData(
-								message.getBytes().length,
+								metadata.serializedValueSize() + metadata.serializedKeySize(),
 								System.currentTimeMillis() - startTime);
 					}
 				});

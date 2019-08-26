@@ -24,6 +24,6 @@ fi
 A2_AGENT_HOME=/opt/a2/agents/oraadr
 
 nohup $JAVA \
-    -cp $(for i in $A2_AGENT_HOME/lib/*.jar ; do echo -n $i: ; done)$A2_AGENT_HOME/oraadr-kafka-0.9.0.jar \
+    -cp $(for i in $A2_AGENT_HOME/lib/*.jar ; do echo -n $i: ; done)$A2_AGENT_HOME/oraadr-kafka-0.9.1.jar \
     -Da2.log4j.configuration=$A2_AGENT_HOME/log4j.properties eu.solutions.a2.oraadr.OraadrKafka \
     $A2_AGENT_HOME/oraadr-kafka.conf </dev/null 2>&1 | tee oraadr-kafka.log &

@@ -20,6 +20,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.log4j.Logger;
+
+import eu.solutions.a2.oraadr.schema.AdrFileKafkaSerializer;
 	
 public class KafkaSingleton {
 
@@ -32,7 +34,7 @@ public class KafkaSingleton {
 	/** Kafka topic */
 	private String kafkaTopic = null;
 	/**  Kafka producer */
-	private Producer<String, String> kafkaProducer;
+	private Producer<String, Object> kafkaProducer;
 
 	private KafkaSingleton() {
 	}
@@ -48,7 +50,7 @@ public class KafkaSingleton {
 		return kafkaTopic;
 	}
 
-	public Producer<String, String> producer() {
+	public Producer<String, Object> producer() {
 		return kafkaProducer;
 	}
 
@@ -62,7 +64,7 @@ public class KafkaSingleton {
 		}
 	}
 
-	public void parseSettings(final Properties props, final String configPath, final int exitCode) {
+	public void parseSettings(final Properties props, final String configPath, final int dataFormat, final int exitCode) {
 		kafkaTopic = props.getProperty("a2.kafka.topic");
 		if (kafkaTopic == null || "".equals(kafkaTopic)) {
 			LOGGER.fatal("a2.kafka.topic parameter must set in configuration file " + configPath);
@@ -89,7 +91,15 @@ public class KafkaSingleton {
 		kafkaProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaServers);
 		kafkaProps.put(ProducerConfig.CLIENT_ID_CONFIG, kafkaClientId);
 		kafkaProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-		kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+		if (dataFormat == OraadrKafka.DATA_FORMAT_RAW_STRING) {
+			kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+		} else if (dataFormat == OraadrKafka.DATA_FORMAT_JSON) {
+			kafkaProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, AdrFileKafkaSerializer.class.getName());
+		} else {
+			LOGGER.fatal("Wrong data format specified!");
+			LOGGER.fatal("Exiting.");
+			System.exit(exitCode);
+		}
 
 		final String useSSL = props.getProperty("a2.kafka.security.protocol", "").trim();
 		if (SECURITY_SSL.equalsIgnoreCase(useSSL)) {

@@ -16,27 +16,38 @@ package eu.solutions.a2.oraadr;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Callable;
 
+import javax.xml.bind.JAXBException;
+
 import org.apache.log4j.Logger;
 
-import com.amazonaws.services.kinesis.producer.UserRecordResult;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.amazonaws.services.kinesis.model.PutRecordRequest;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 
+import eu.solutions.a2.oraadr.schema.AdrFileUnmarshallerSingleton;
+import eu.solutions.a2.oraadr.schema.Msg;
 import eu.solutions.a2.utils.ExceptionUtils;
 
 public class KinesisJob implements Callable<Void> {
 
 	private static final Logger LOGGER = Logger.getLogger(KinesisJob.class);
 
+	private static final ObjectWriter writer = new ObjectMapper()
+			.setSerializationInclusion(Include.ALWAYS)
+			.writer();
+
 	final String prefix;
 	final String message;
+	final long msgNum;
 	final CommonJobSingleton commonData;
 	final KinesisSingleton kinesisData;
 
-	KinesisJob(final String prefix, final String message) {
+	KinesisJob(final String prefix, final long msgNum, final String message) {
 		this.prefix = prefix;
 		this.message = message;
+		this.msgNum = msgNum;
 		this.commonData = CommonJobSingleton.getInstance();
 		this.kinesisData = KinesisSingleton.getInstance();
 	}
@@ -44,37 +55,48 @@ public class KinesisJob implements Callable<Void> {
 	@Override
 	public Void call() {
 		final long startTime = System.currentTimeMillis();
-		final String kinesisKey = prefix + ":" + startTime;
-		final byte[] msgBytes = message.getBytes();
-		ListenableFuture<UserRecordResult> futureResult =
-					kinesisData.producer().addUserRecord(
-								kinesisData.topic(), kinesisKey, ByteBuffer.wrap(msgBytes));
-		Futures.addCallback(futureResult,
-						new KinesisAsyncCallback(msgBytes.length, startTime));			
+		// Add message number to prefix
+		final StringBuilder kinesisKey = new StringBuilder(32);
+		kinesisKey.append(prefix);
+		kinesisKey.append(":");
+		kinesisKey.append(msgNum);
+		kinesisKey.append(":");
+		kinesisKey.append(startTime);
+
+		byte[] msgBytes = null;
+
+		PutRecordRequest putRecordRequest  = new PutRecordRequest();
+		putRecordRequest.setStreamName(kinesisData.topic());
+		putRecordRequest.setPartitionKey(kinesisKey.toString());
+		if (commonData.getDataFormat() == OraadrKafka.DATA_FORMAT_RAW_STRING) {
+			msgBytes = message.getBytes();
+		} else if (commonData.getDataFormat() == OraadrKafka.DATA_FORMAT_JSON) {
+			AdrFileUnmarshallerSingleton afu = AdrFileUnmarshallerSingleton.getInstance();
+			try {
+				Msg msg = afu.getMessageAsPojo(message);
+				msg.setAdrFileKey(prefix);
+				msgBytes = writer.writeValueAsBytes(msg);
+			} catch (JAXBException | JsonProcessingException e) {
+				LOGGER.error("Exception while transforming message.\n" );
+				LOGGER.error("Message is:\n" + message);
+				LOGGER.error("ErrorStack:\n");
+				LOGGER.error(ExceptionUtils.getExceptionStackTrace(e));
+			}
+		}
+		if (msgBytes == null) {
+			return null;
+		}
+		putRecordRequest.setData(ByteBuffer.wrap(msgBytes));
+		try {
+			kinesisData.producer().putRecord(putRecordRequest);
+			commonData.addFileData(
+					msgBytes.length,
+					System.currentTimeMillis() - startTime);
+		} catch (Exception e) {
+			LOGGER.error("Exception while sending message to Kinesis." );
+			LOGGER.error(ExceptionUtils.getExceptionStackTrace(e));
+		}
 		return null;
 	}
 
-	private class KinesisAsyncCallback implements FutureCallback<UserRecordResult> {
-
-		private final int msgSize;
-		private final long startTime;
-
-		KinesisAsyncCallback(final int msgSize, final long startTime) {
-			this.msgSize = msgSize;
-			this.startTime = startTime;
-		}
-		
-		@Override
-		public void onSuccess(UserRecordResult result) {
-			commonData.addFileData(
-					msgSize,
-					System.currentTimeMillis() - startTime);
-		}
-
-		@Override
-		public void onFailure(Throwable t) {
-			LOGGER.error("Exception while sending message to Kinesis!!!" );
-			LOGGER.error(ExceptionUtils.getExceptionStackTrace(new Exception(t)));
-		}
-	}
 }

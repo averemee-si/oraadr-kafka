@@ -17,10 +17,12 @@ import java.util.Properties;
 
 import org.apache.log4j.Logger;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesis.producer.KinesisProducer;
-import com.amazonaws.services.kinesis.producer.KinesisProducerConfiguration;
+import com.amazonaws.services.kinesis.AmazonKinesis;
+import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
 	
 public class KinesisSingleton {
 
@@ -30,10 +32,8 @@ public class KinesisSingleton {
 
 	/** Kinesis stream name */
 	private String streamName = null;
-	/**  Kinesis producer */
-	private KinesisProducer kinesisProducer;
-	/** a2.kinesis.file.size.threshold */
-	private int fileSizeThreshold = 512;
+	/**  Kinesis sync client */
+	private AmazonKinesis kinesisClient;
 
 	private KinesisSingleton() {
 	}
@@ -49,22 +49,12 @@ public class KinesisSingleton {
 		return streamName;
 	}
 
-	public int getFileSizeThreshold() {
-		return fileSizeThreshold;
-	}
-
-	public KinesisProducer producer() {
-		return kinesisProducer;
+	public AmazonKinesis producer() {
+		return kinesisClient;
 	}
 
 	public void shutdown() {
-		if (kinesisProducer != null) {
-			kinesisProducer.flushSync();
-			kinesisProducer.destroy();
-		} else {
-			LOGGER.fatal("Attempt to close non-initialized Kinesis producer!");
-			System.exit(1);
-		}
+		// Nothing here
 	}
 
 	public void parseSettings(final Properties props, final String configPath, final int exitCode) {
@@ -97,9 +87,9 @@ public class KinesisSingleton {
 		}
 
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials(accessKey, accessSecret);
-		KinesisProducerConfiguration config = new KinesisProducerConfiguration();
-		config.setRegion(region);
-		config.setCredentialsProvider(new AWSStaticCredentialsProvider(awsCreds));
+		AWSCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
+
+		ClientConfiguration config = new ClientConfiguration();
 
 		// The maxConnections parameter can be used to control the degree of
         // parallelism when making HTTP requests.
@@ -115,46 +105,13 @@ public class KinesisSingleton {
 		}
 		config.setMaxConnections(maxConnections);
 
-		// Request timeout milliseconds
-		long requestTimeout = 30000;
-		String requestTimeoutString = props.getProperty("a2.kinesis.request.timeout", "");
-		if (requestTimeoutString != null && !"".equals(requestTimeoutString)) {
-			try {
-				requestTimeout = Integer.parseInt(requestTimeoutString);
-			} catch (Exception e) {
-				LOGGER.warn("Incorrect value for a2.kinesis.request.timeout -> " + requestTimeoutString);
-				LOGGER.warn("Setting it to 30000");
-			}
-		}
-		config.setRequestTimeout(requestTimeout);
-
-		// RecordMaxBufferedTime
-		long recordMaxBufferedTime = 5000;
-		String recordMaxBufferedTimeString = props.getProperty("a2.kinesis.request.record.max.buffered.time", "");
-		if (recordMaxBufferedTimeString != null && !"".equals(recordMaxBufferedTimeString)) {
-			try {
-				recordMaxBufferedTime = Integer.parseInt(recordMaxBufferedTimeString);
-			} catch (Exception e) {
-				LOGGER.warn("Incorrect value for a2.kinesis.request.record.max.buffered.time -> " + recordMaxBufferedTimeString);
-				LOGGER.warn("Setting it to 5000");
-			}
-		}
-		config.setRecordMaxBufferedTime(recordMaxBufferedTime);
-
-		// fileSizeThreshold
-		String fileSizeThresholdString = props.getProperty("a2.kinesis.file.size.threshold", "");
-		if (fileSizeThresholdString != null && !"".equals(fileSizeThresholdString)) {
-			try {
-				fileSizeThreshold = Integer.parseInt(fileSizeThresholdString);
-			} catch (Exception e) {
-				LOGGER.warn("Incorrect value for a2.kinesis.file.size.threshold -> " + fileSizeThresholdString);
-				LOGGER.warn("Setting it to 512");
-			}
-		}
+		AmazonKinesisClientBuilder clientBuilder = AmazonKinesisClientBuilder.standard();
+		clientBuilder.setRegion(region);
+		clientBuilder.setCredentials(credentialsProvider);
+		clientBuilder.setClientConfiguration(config);
 
 		// Initialize connection to Kinesis
-		kinesisProducer = new KinesisProducer(config);
+		kinesisClient = clientBuilder.build();
 	}
-
-
+	
 }

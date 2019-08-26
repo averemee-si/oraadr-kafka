@@ -52,6 +52,9 @@ public class OraadrKafka {
 	private static final int TARGET_KINESIS = 1;
 	/** Set default target system to Apache Kafka */
 	private static int targetSystem = TARGET_KAFKA;
+	/** Supported data formats */
+	protected static final int DATA_FORMAT_RAW_STRING = 0;
+	protected static final int DATA_FORMAT_JSON = 1;
 	/**   Main thread pool for data tansfer jobs */
 	private static ThreadPoolExecutor threadPool;
 
@@ -75,7 +78,7 @@ public class OraadrKafka {
 		}
 
 		int fileQueryInterval = FILE_QUERY_INTERVAL;
-		String fileQueryIntervalString = props.getProperty("a2.file.query.interval");
+		final String fileQueryIntervalString = props.getProperty("a2.file.query.interval");
 		if (fileQueryIntervalString != null && !"".equals(fileQueryIntervalString)) {
 			try {
 				fileQueryInterval = Integer.parseInt(fileQueryIntervalString);
@@ -87,13 +90,27 @@ public class OraadrKafka {
 		// For use in Lambda
 		final int fileQueryIntervalFinal = fileQueryInterval;
 
+		// Set default data format to Raw string
+		int dataFormat = DATA_FORMAT_RAW_STRING;
+		final String dataFormatString = props.getProperty("a2.data.format");
+		if (dataFormatString != null && !"".equals(dataFormatString)) {
+			if ("RAW".equalsIgnoreCase(dataFormatString)) {
+				dataFormat = DATA_FORMAT_RAW_STRING;
+			} else if ("JSON".equalsIgnoreCase(dataFormatString)) {
+				dataFormat = DATA_FORMAT_JSON;
+			} else {
+				LOGGER.warn("Incorrect value for a2.data.format -> " + dataFormatString);
+				LOGGER.warn("Setting it to RAW");
+			}
+		}
+
+		// Init CommonJob MBean
+		CommonJobSingleton.getInstance(dataFormat);
+
 		String osName = System.getProperty("os.name").toUpperCase();
 		LOGGER.info("Running on " + osName);
-		// Init CommonJob MBean
-		CommonJobSingleton.getInstance();
-
 		if (targetSystem == TARGET_KAFKA) {
-			KafkaSingleton.getInstance().parseSettings(props, argv[0], 6);
+			KafkaSingleton.getInstance().parseSettings(props, argv[0], dataFormat, 6);
 		} else if (targetSystem == TARGET_KINESIS) {
 			KinesisSingleton.getInstance().parseSettings(props, argv[0], 6);
 		}
@@ -204,15 +221,10 @@ public class OraadrKafka {
 					msgFlag = false;
 					msg.append(line);
 					Callable<Void> processJob = null;
-					// Add message number to prefix
-					StringBuffer msgPrefix = new StringBuffer(32);
-					msgPrefix.append(prefix);
-					msgPrefix.append(":");
-					msgPrefix.append(msgCount++);
 					if (targetSystem == TARGET_KAFKA) {
-						processJob = new KafkaJob(msgPrefix.toString(), msg.toString());
+						processJob = new KafkaJob(prefix, msgCount++, msg.toString());
 					} else if (targetSystem == TARGET_KINESIS) {
-						processJob = new KinesisJob(msgPrefix.toString(), msg.toString());
+						processJob = new KinesisJob(prefix, msgCount++, msg.toString());
 					}
 					try {
 						threadPool.submit(processJob);

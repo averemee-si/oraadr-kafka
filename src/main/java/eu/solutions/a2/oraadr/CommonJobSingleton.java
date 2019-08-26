@@ -36,9 +36,12 @@ public class CommonJobSingleton {
 	private final String hostName;
 	/** MBean */
 	private final CommonJobMgmt mbean;
+	/** Data format */
+	final int dataFormat;
 	
 
-	private CommonJobSingleton() {
+	private CommonJobSingleton(int dataFormat) {
+		this.dataFormat = dataFormat;
 		hostName = OsUtils.execAndGetResult("hostname");
 		mbean = new CommonJobMgmt();
 		try {
@@ -64,9 +67,18 @@ public class CommonJobSingleton {
 		}
 	}
 
+	public static CommonJobSingleton getInstance(int dataFormat) {
+		if (instance == null) {
+			instance = new CommonJobSingleton(dataFormat);
+		}
+		return instance;
+	}
+
 	public static CommonJobSingleton getInstance() {
 		if (instance == null) {
-			instance = new CommonJobSingleton();
+			LOGGER.fatal("Attempt to access uninitialized instance.");
+			LOGGER.fatal("Exiting");
+			System.exit(1);
 		}
 		return instance;
 	}
@@ -77,6 +89,10 @@ public class CommonJobSingleton {
 
 	public String getHostName() {
 		return hostName;
+	}
+
+	public int getDataFormat() {
+		return dataFormat;
 	}
 
 }
