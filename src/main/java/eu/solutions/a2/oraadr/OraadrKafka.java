@@ -23,12 +23,9 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.input.Tailer;
 import org.apache.commons.io.input.TailerListenerAdapter;
@@ -171,18 +168,6 @@ public class OraadrKafka {
 			}
 		});
 
-		// Initialize main thread pool
-		BlockingQueue<Runnable> blockingQueue = new ArrayBlockingQueue<Runnable>(4096 * adrTailers.size());
-		threadPool = new ThreadPoolExecutor(
-				adrTailers.size(),	// core pool size
-				adrTailers.size(),	// maximum pool size
-				15,	// If the pool currently has more than corePoolSize threads, excess threads will be terminated if they have been idle for more than the keepAliveTime
-				TimeUnit.SECONDS,	// Time unit for keep-alive
-				blockingQueue	// Job queue
-				);
-		// Throw RejectedExecutionException with full queue
-		threadPool.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-
 		// Start watching
 		adrTailers.forEach((entry) -> {
 			Thread thread = entry.getKey();
@@ -283,6 +268,5 @@ public class OraadrKafka {
 			System.exit(exitCode);
 		}
 	}
-
 
 }
