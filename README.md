@@ -1,3 +1,5 @@
+No longer maintained, please try [oralog](https://github.com/averemee-si/oralog) instead
+
 # oraadr-kafka
 
 [Oracle Database](https://www.oracle.com/database/index.html) [Automatic Diagnostic Repository](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/admin/managing-diagnostic-data.html#GUID-8DEB1BE0-8FB9-4FB2-A19A-17CF6F5791C3) messages to [Apache Kafka](http://kafka.apache.org/) or [Amazon Kinesis](https://aws.amazon.com/kinesis/) transfer.
